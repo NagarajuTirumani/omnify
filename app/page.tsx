@@ -1,113 +1,214 @@
+"use client";
+import Filter from "@/components/Filter/Filter";
+import Search from "@/components/Search/Search";
+import Table from "@/components/Table/Table";
+import {
+  cardList,
+  dataProps,
+  selectedProps,
+  tableApiProps,
+} from "@/types/types";
+import { getHeaderData, getTableData } from "@/utils/api-utils";
+import { useDeveloperData } from "@/utils/appContext";
+import { columns } from "@/utils/utility";
+import React, { Fragment, useEffect, useRef, useState } from "react";
+import refreshIcon from "@/public/refresh-ccw.svg";
+import columnsIcon from "@/public/columns.svg";
+import downloadIcon from "@/public/download.svg";
 import Image from "next/image";
+import Modal from "@/components/Modal/Modal";
+import EditColumn from "@/components/EditColumn/EditColumn";
+import { Position } from "@/utils/getPositions";
+import { debounce } from "@/utils/useDebounce";
+import { downloadCSV } from "@/utils/toCsv";
+import ShowFilter from "@/components/Filter/ShowFilter";
 
-export default function Home() {
+const Page = () => {
+  const myRef = useRef(null);
+  const { appData } = useDeveloperData();
+  const [data, setData] = useState<Array<dataProps>>();
+  const [loading, setLoading] = useState<boolean>(true);
+  const [searchValue, setSearchValue] = useState<string>("");
+  const [totalRows, setTotalRows] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [showColumn, setShowColumn] = useState(false);
+  const [checkbox, setCheckbox] = useState<Array<number>>([
+    0, 1, 2, 3, 4, 5, 6,
+  ]);
+  const [headerData, setHeaderData] = useState([]);
+
+  const cardList: Array<cardList> = [
+    { name: "All Waitlists", value: 100 },
+    { name: "Newly Added", value: 50 },
+    { name: "Leads", value: 20 },
+  ];
+
+  function tableData({ searchText, page, pageSize }: tableApiProps) {
+    getTableData({
+      searchText: searchText ?? "",
+      page: page,
+      pageSize: pageSize,
+    })
+      .then((response) => {
+        setData(response?.rows);
+        setTotalRows(response?.totalCount);
+        setLoading(false);
+      })
+      .catch((err) => {
+        setData([]);
+        setTotalRows(0);
+        setLoading(false);
+      });
+  }
+
+  useEffect(() => {
+    tableData({ page: currentPage, pageSize: rowsPerPage });
+  }, [currentPage, rowsPerPage]);
+
+  const debunceSearch = debounce(tableData, 500);
+
+  useEffect(() => {
+    if (searchValue)
+      debunceSearch({
+        searchText: searchValue,
+        page: currentPage,
+        pageSize: rowsPerPage,
+      });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchValue]);
+
+  useEffect(() => {
+    getHeaderData()
+      .then((response) => {
+        setHeaderData(response);
+      })
+      .catch((err) => {
+        setHeaderData([]);
+      });
+  }, []);
+
+  const handleChange = (event: any) => {
+    setSearchValue(event.target?.value);
+  };
+
+  const handleCheckbox = (each: selectedProps) => {
+    let updatedArray = [...checkbox];
+    const index = updatedArray?.indexOf(each?.id);
+
+    if (index === -1) {
+      updatedArray.push(each?.id);
+    } else {
+      updatedArray?.splice(index, 1);
+    }
+    setCheckbox(updatedArray);
+  };
+
+  const handleApply = () => {
+    setShowColumn(false);
+  };
+
+  const handleReset = () => {
+    setCheckbox([0, 1, 2, 3, 4, 5, 6]);
+    handleApply();
+  };
+
+  const handleDownload = () => {
+    downloadCSV(data!);
+  };
+
   return (
-    <main className="flex min-h-screen flex-col items-center justify-between p-24">
-      <div className="z-10 w-full max-w-5xl items-center justify-between font-mono text-sm lg:flex">
-        <p className="fixed left-0 top-0 flex w-full justify-center border-b border-gray-300 bg-gradient-to-b from-zinc-200 pb-6 pt-8 backdrop-blur-2xl dark:border-neutral-800 dark:bg-zinc-800/30 dark:from-inherit lg:static lg:w-auto  lg:rounded-xl lg:border lg:bg-gray-200 lg:p-4 lg:dark:bg-zinc-800/30">
-          Get started by editing&nbsp;
-          <code className="font-mono font-bold">app/page.tsx</code>
-        </p>
-        <div className="fixed bottom-0 left-0 flex h-48 w-full items-end justify-center bg-gradient-to-t from-white via-white dark:from-black dark:via-black lg:static lg:size-auto lg:bg-none">
-          <a
-            className="pointer-events-none flex place-items-center gap-2 p-8 lg:pointer-events-auto lg:p-0"
-            href="https://vercel.com?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            By{" "}
-            <Image
-              src="/vercel.svg"
-              alt="Vercel Logo"
-              className="dark:invert"
-              width={100}
-              height={24}
-              priority
-            />
-          </a>
+    <Fragment>
+      <div
+        className="h-full p-2 "
+        style={{
+          width: appData?.collapse
+            ? "calc(100% - 10vmin)"
+            : "calc(100% - 42vmin)",
+        }}
+      >
+        <div className="bg-white h-full rounded-md w-full">
+          <div className="px-4">
+            <p className="pt-4 pb-2 text-[20px] leading-7 font-[600]">
+              Waitlist
+            </p>
+            <div className="flex gap-4 py-4">
+              {cardList?.map((each: cardList, index: number) => (
+                <div
+                  className="flex p-[10px_12px_10px_12px] text-xs border-[1px] border-[#64748B] gap-2 w-full rounded-md"
+                  key={index}
+                >
+                  <span className="font-[600]">{each?.name}</span>
+                  <span className="font-[400]">{each?.value}</span>
+                </div>
+              ))}
+            </div>
+            <div className="flex justify-between pb-4">
+              <div className="flex items-center gap-4">
+                <Filter />
+                <ShowFilter/>
+              </div>
+              <div className="flex gap-6" ref={myRef}>
+                <Search
+                  placeholder="Search client"
+                  name="search"
+                  value={searchValue}
+                  onChange={handleChange}
+                  style={{
+                    width: "40vmin",
+                    padding: "4px 0px",
+                  }}
+                />
+                <Image src={refreshIcon} alt="refresh" width={16} height={16} />
+                <Image
+                  src={columnsIcon}
+                  alt="column"
+                  width={16}
+                  height={16}
+                  onClick={() => setShowColumn((prev) => !prev)}
+                />
+                <Image
+                  src={downloadIcon}
+                  alt="download"
+                  width={16}
+                  height={16}
+                  onClick={handleDownload}
+                />
+              </div>
+            </div>
+            <div className="w-full overflow-hidden text-xs border-[1px] border-[#E2E8F0] rounded-sm">
+              <Table
+                data={data}
+                header={columns(checkbox)}
+                loading={loading}
+                totalRows={totalRows}
+                rowsPerPage={rowsPerPage}
+                setRowsPerPage={setRowsPerPage}
+                currentPage={currentPage}
+                setCurrentPage={setCurrentPage}
+              />
+            </div>
+          </div>
         </div>
       </div>
-
-      <div className="relative z-[-1] flex place-items-center before:absolute before:h-[300px] before:w-full before:-translate-x-1/2 before:rounded-full before:bg-gradient-radial before:from-white before:to-transparent before:blur-2xl before:content-[''] after:absolute after:-z-20 after:h-[180px] after:w-full after:translate-x-1/3 after:bg-gradient-conic after:from-sky-200 after:via-blue-200 after:blur-2xl after:content-[''] before:dark:bg-gradient-to-br before:dark:from-transparent before:dark:to-blue-700 before:dark:opacity-10 after:dark:from-sky-900 after:dark:via-[#0141ff] after:dark:opacity-40 sm:before:w-[480px] sm:after:w-[240px] before:lg:h-[360px]">
-        <Image
-          className="relative dark:drop-shadow-[0_0_0.3rem_#ffffff70] dark:invert"
-          src="/next.svg"
-          alt="Next.js Logo"
-          width={180}
-          height={37}
-          priority
+      <Modal
+        isOpen={showColumn}
+        setIsOpen={setShowColumn}
+        style="flex-col gap-1 p-4 w-[42vmin]"
+        onClose={() => {}}
+        myRef={myRef}
+        position={Position.Top}
+      >
+        <EditColumn
+          selected={checkbox!}
+          options={headerData}
+          onChange={handleCheckbox}
+          onApply={handleApply}
+          onReset={handleReset}
         />
-      </div>
-
-      <div className="mb-32 grid text-center lg:mb-0 lg:w-full lg:max-w-5xl lg:grid-cols-4 lg:text-left">
-        <a
-          href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          className="group rounded-lg border border-transparent px-5 py-4 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:dark:border-neutral-700 hover:dark:bg-neutral-800/30"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2 className="mb-3 text-2xl font-semibold">
-            Docs{" "}
-            <span className="inline-block transition-transform group-hover:translate-x-1 motion-reduce:transform-none">
-              -&gt;
-            </span>
-          </h2>
-          <p className="m-0 max-w-[30ch] text-sm opacity-50">
-            Find in-depth information about Next.js features and API.
-          </p>
-        </a>
-
-        <a
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          className="group rounded-lg border border-transparent px-5 py-4 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:dark:border-neutral-700 hover:dark:bg-neutral-800/30"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2 className="mb-3 text-2xl font-semibold">
-            Learn{" "}
-            <span className="inline-block transition-transform group-hover:translate-x-1 motion-reduce:transform-none">
-              -&gt;
-            </span>
-          </h2>
-          <p className="m-0 max-w-[30ch] text-sm opacity-50">
-            Learn about Next.js in an interactive course with&nbsp;quizzes!
-          </p>
-        </a>
-
-        <a
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          className="group rounded-lg border border-transparent px-5 py-4 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:dark:border-neutral-700 hover:dark:bg-neutral-800/30"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2 className="mb-3 text-2xl font-semibold">
-            Templates{" "}
-            <span className="inline-block transition-transform group-hover:translate-x-1 motion-reduce:transform-none">
-              -&gt;
-            </span>
-          </h2>
-          <p className="m-0 max-w-[30ch] text-sm opacity-50">
-            Explore starter templates for Next.js.
-          </p>
-        </a>
-
-        <a
-          href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          className="group rounded-lg border border-transparent px-5 py-4 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:dark:border-neutral-700 hover:dark:bg-neutral-800/30"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2 className="mb-3 text-2xl font-semibold">
-            Deploy{" "}
-            <span className="inline-block transition-transform group-hover:translate-x-1 motion-reduce:transform-none">
-              -&gt;
-            </span>
-          </h2>
-          <p className="m-0 max-w-[30ch] text-balance text-sm opacity-50">
-            Instantly deploy your Next.js site to a shareable URL with Vercel.
-          </p>
-        </a>
-      </div>
-    </main>
+      </Modal>
+    </Fragment>
   );
-}
+};
+
+export default Page;
